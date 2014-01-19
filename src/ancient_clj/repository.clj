@@ -101,10 +101,9 @@
            versions
            (let [[repo & rst] repos]
              (if-let [repo-versions (when-let [mta (retrieve-single-metadata-xml! repo group-id artifact-id)]
-                                      (when-let [release (and (string? mta) (parse-meta mta :release))]
-                                        (if (seq release)
-                                          release
-                                          (parse-meta mta :version))))]
+                                      (if-let [release (and (string? mta) (not snapshots?) (parse-meta mta :release))]
+                                        release
+                                        (parse-meta mta :version)))]
                (if-not aggressive?
                  repo-versions
                  (recur rst (concat versions repo-versions)))
