@@ -64,6 +64,14 @@
          (retrieve-single-metadata-xml! (first repos) group-id artifact-id)
          (recur (rest repos)))))))
 
+(defn- parse-meta [meta key]
+  (for [t (try
+            (xml-seq (xml/parse-str meta))
+            (catch Exception e
+              (verbose "Could not read XML: " (.getMessage e))))
+        :when (= (:tag t) key)]
+    (first (:content t))))
+
 (defn retrieve-versions!
   "Retrieve a seq of version pairs (`[version-string version-seq]`) for the given artifact
    from the given repositories. The following calls are possible (using an optional
@@ -93,13 +101,10 @@
            versions
            (let [[repo & rst] repos]
              (if-let [repo-versions (when-let [mta (retrieve-single-metadata-xml! repo group-id artifact-id)]
-                                      (when (string? mta)
-                                        (for [t (try
-                                                  (xml-seq (xml/parse-str mta))
-                                                  (catch Exception e
-                                                    (verbose "Could not read XML: " (.getMessage e))))
-                                              :when (= (:tag t) :version)]
-                                          (first (:content t)))))]
+                                      (when-let [release (and (string? mta) (parse-meta mta :release))]
+                                        (if (seq release)
+                                          release
+                                          (parse-meta mta :version))))]
                (if-not aggressive?
                  repo-versions
                  (recur rst (concat versions repo-versions)))
