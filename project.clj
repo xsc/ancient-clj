@@ -1,4 +1,4 @@
-(defproject ancient-clj "0.1.9"
+(defproject ancient-clj "0.1.10-SNAPSHOT"
   :description "Maven Version Utilities for Clojure"
   :url "https://github.com/xsc/ancient-clj"
   :license {:name "Eclipse Public License"
@@ -13,7 +13,9 @@
                  [commons-codec "1.9"]
                  [commons-logging "1.1.3"]]
   :exclusions [org.clojure/clojure]
-  :repositories  {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"}
+  :repositories  {"sonatype-oss-public" "https://oss.sonatype.org/content/groups/public/"
+                  "releases" "clojars"
+                  "snapshots" "clojars"}
   :profiles {:dev {:dependencies [[midje "1.6.0" :exclusions [clj-time commons-codec]]]
                    :plugins [[lein-midje "3.1.3"]]}
              :1.4 {:dependencies [[org.clojure/clojure "1.4.0"]]}
