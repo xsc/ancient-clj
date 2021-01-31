@@ -97,9 +97,11 @@ of a more recent version than the input artifact.
 
 ## Supported Repository Types
 
-- HTTP/HTTPS Repositories
-- Local Repositories
-- [Amazon S3 Repositories](https://github.com/technomancy/s3-wagon-private) (private)
+Since version 1.0.0, ancient-clj depends on [pomegranate][] (and thus Aether)
+and can benefit from any wagons that are registered there. Please use
+`cemerick.pomegranate.aether/register-wagon-factory!` to utilise this feature.
+
+[pomegranate]: https://github.com/clj-commons/pomegranate
 
 ## License
 
