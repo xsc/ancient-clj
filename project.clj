@@ -10,12 +10,25 @@
   :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]
                  [clj-commons/pomegranate "1.2.0"]
                  [version-clj "0.1.2"]
-                 [potemkin "0.4.5"]]
+                 [potemkin "0.4.5"]
+                 [riddley "0.2.0"]]
 
-  :profiles {:dev {:dependencies [[midje "1.9.9"]
-                                  [clj-time "0.15.2"]
-                                  [http-kit "2.5.0"]]
-                   :plugins [[lein-midje "3.2.2"]]}}
-  :aliases {"test" ["midje"]}
+  :profiles {:dev
+             {:global-vars {*warn-on-reflection* true}}
+             :kaocha
+             {:dependencies [[lambdaisland/kaocha "1.0.732"
+                              :exclusions [org.clojure/spec.alpha]]
+                             [lambdaisland/kaocha-cloverage "1.0.75"]
+                             [org.tcrawley/dynapath "1.1.0"]]}
+             :ci
+             [:kaocha
+              {:global-vars {*warn-on-reflection* false}}]}
+
+  :aliases {"kaocha"    ["with-profile" "+kaocha" "run" "-m" "kaocha.runner"]
+            "ci"        ["with-profile" "+ci" "run" "-m" "kaocha.runner"
+                         "--reporter" "documentation"
+                         "--plugin"   "cloverage"
+                         "--codecov"
+                         "--no-cov-html"]}
 
   :pedantic? :abort)

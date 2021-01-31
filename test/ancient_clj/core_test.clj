@@ -1,29 +1,20 @@
 (ns ancient-clj.core-test
-  (:require [midje.sweet :refer :all]
-            [ancient-clj.io.xml-test :as xml]
-            [ancient-clj.core :refer :all]
-            [version-clj.core :as v]))
+  (:require [ancient-clj.test :as test]
+            [ancient-clj.core :as ancient]
+            [version-clj.core :as v]
+            [clojure.test :refer [deftest is testing]]))
 
 ;; ## Fixtures
 
 (def repositories
-  {"all"       (constantly xml/versions)
-   "releases"  (constantly xml/release-versions)
-   "qualified" (constantly xml/qualified-versions)
-   "snapshots" (constantly xml/snapshot-versions)})
+  {"all"       (constantly test/versions)
+   "releases"  (constantly test/release-versions)
+   "qualified" (constantly test/qualified-versions)
+   "snapshots" (constantly test/snapshot-versions)})
 
 (defn version-strings
   [v k]
   (map :version-string (get v k)))
-
-(def releases
-  (v/version-sort xml/release-versions))
-
-(def qualified
-  (v/version-sort xml/qualified-versions))
-
-(def snapshots
-  (v/version-sort xml/snapshot-versions))
 
 (defn no-duplicates?
   [sq]
@@ -31,55 +22,144 @@
 
 ;; ## Tests
 
-(tabular
-  (tabular
-    (tabular
-      (let [opts (-> (merge ?sort-opts ?snapshots-opts ?qualified-opts)
-                     (assoc :repositories repositories))
-            all (-> releases
-                    (concat ?qualified ?snapshots)
-                    (v/version-sort))]
-        (facts "about artifact version retrieval"
-               (fact "about versions-per-repository!"
-                 (let [vs (versions-per-repository! 'pandect opts)
-                       vss (apply concat (vals vs))]
-                   vss => (has every? :version)
-                   vss => (has every? :version-string)
-                   vss =not=> no-duplicates?
-                   (version-strings vs "all") => (?f all)
-                   (version-strings vs "releases")  => (?f releases)
-                   (version-strings vs "qualified") => (?f ?qualified)
-                   (version-strings vs "snapshots") => (?f ?snapshots)))
-               (fact "about versions!"
-                 (let [vs (versions! 'pandect opts)]
-                   vs => (has every? :version)
-                   vs => (has every? :version-string)
-                   vs => no-duplicates?
-                   (map :version-string vs) => (?f all)))
-               (fact "about version-strings!"
-                 (let [vs (version-strings! 'pandect opts)]
-                   vs => (has every? string?)
-                   vs => no-duplicates?
-                   vs => (?f all)))
-               (fact "about latest-version!"
-                 (let [v (latest-version! 'pandect opts)]
-                   (:version v) => truthy
-                   (:version-string v) => (last all)))
-               (fact "about latest-version-string!"
-                 (latest-version-string! 'pandect opts) => (last all))
-               (fact "about artifact-outdated?"
-                 (let [v (artifact-outdated? '[pandect (first all)] opts)]
-                   (:version v) => truthy
-                   (:version-string v) => (last all)))
-               (fact "about artifact-outdated-string?"
-                 (let [v (artifact-outdated-string? '[pandect (first all)] opts)]
-                   v => (last all)))))
-      ?sort-opts        ?f
-      {:sort :desc}     reverse
-      {:sort :asc}      identity)
-    ?snapshots-opts     ?snapshots
-    {:snapshots? true}  snapshots
-    {:snapshots? false} [])
-  ?qualified-opts           ?qualified
-  {:qualified? true}        qualified
-  {:qualified? false}       [])
+(deftest t-versions-per-repository!
+  (testing "sort descending (default)"
+    (let [opts {:repositories repositories}
+          versions (ancient/versions-per-repository! 'pandect opts)
+          all-results (apply concat (vals versions))]
+      (is (= (set (keys repositories))
+             (set (keys versions))))
+      (is (every? :version all-results))
+      (is (every? :version-string all-results))
+      (is (= (reverse test/release-versions-sorted)
+             (version-strings versions "releases")))
+      (is (= (reverse test/qualified-versions-sorted)
+             (version-strings versions "qualified")))
+      (is (= (reverse test/snapshot-versions-sorted)
+             (version-strings versions "snapshots")))
+      (is (= (reverse test/versions-sorted)
+             (version-strings versions "all")))))
+  (testing "sort ascending"
+    (let [opts {:repositories repositories, :sort :asc}
+          versions (ancient/versions-per-repository! 'pandect opts)]
+      (is (= test/release-versions-sorted
+             (version-strings versions "releases")))
+      (is (= test/qualified-versions-sorted
+             (version-strings versions "qualified")))
+      (is (= test/snapshot-versions-sorted
+             (version-strings versions "snapshots")))
+      (is (= test/versions-sorted
+             (version-strings versions "all")))))
+  (testing "exclude SNAPSHOT versions"
+    (let [opts {:repositories repositories, :sort :asc, :snapshots? false}
+          versions (ancient/versions-per-repository! 'pandect opts)]
+      (is (= test/release-versions-sorted
+             (version-strings versions "releases")))
+      (is (= test/qualified-versions-sorted
+             (version-strings versions "qualified")))
+      (is (empty? (version-strings versions "snapshots")))
+      (is (not= test/versions-sorted
+                (version-strings versions "all")))))
+  (testing "exclude qualified versions"
+    (let [opts {:repositories repositories, :sort :asc, :qualified? false}
+          versions (ancient/versions-per-repository! 'pandect opts)]
+      (is (= test/release-versions-sorted
+             (version-strings versions "releases")))
+      (is (empty? (version-strings versions "qualified")))
+      (is (= test/snapshot-versions-sorted
+             (version-strings versions "snapshots")))
+      (is (not= test/versions-sorted
+                (version-strings versions "all"))))))
+
+(deftest t-versions!
+  (testing "sort descending (default)"
+    (let [opts {:repositories repositories}
+          versions (ancient/versions! 'pandect opts)]
+      (is (no-duplicates? versions))
+      (is (every? :version versions))
+      (is (every? :version-string versions))
+      (is (= (reverse test/versions-sorted)
+             (map :version-string versions)))))
+  (testing "sort ascending"
+    (let [opts {:repositories repositories, :sort :asc}
+          versions (ancient/versions! 'pandect opts)]
+      (is (no-duplicates? versions))
+      (is (every? :version versions))
+      (is (every? :version-string versions))
+      (is (= test/versions-sorted
+             (map :version-string versions))))))
+
+(deftest t-version-strings!
+  (testing "sort descending (default)"
+    (let [opts {:repositories repositories}
+          versions (ancient/version-strings! 'pandect opts)]
+      (is (no-duplicates? versions))
+      (is (= (reverse test/versions-sorted) versions))))
+  (testing "sort ascending"
+    (let [opts {:repositories repositories, :sort :asc}
+          versions (ancient/version-strings! 'pandect opts)]
+      (is (no-duplicates? versions))
+      (is (= test/versions-sorted versions)))))
+
+(deftest t-latest-version!
+  (testing "all versions"
+    (let [opts {:repositories repositories}
+          version (ancient/latest-version! 'pandect opts)]
+      (is (= "0.1.3-SNAPSHOT" (:version-string version)))))
+  (testing "only releases"
+    (let [opts {:repositories repositories,
+                :snapshots? false,
+                :qualified? false}
+          version (ancient/latest-version! 'pandect opts)]
+      (is (= "0.1.2" (:version-string version)))))
+  (testing "including qualified versions"
+    (let [opts {:repositories repositories,
+                :snapshots? false}
+          version (ancient/latest-version! 'pandect opts)]
+      (is (= "0.1.3-alpha" (:version-string version))))))
+
+(deftest t-artifact-outdated?
+  (testing "newer version available"
+    (let [opts {:repositories repositories}
+          version (ancient/artifact-outdated?
+                    ['pandect (first test/versions-sorted)]
+                    opts)]
+      (is (= "0.1.3-SNAPSHOT" (:version-string version)))))
+  (testing "already latest version"
+    (let [opts {:repositories repositories}
+          version (ancient/artifact-outdated?
+                    ['pandect (last test/versions-sorted)]
+                    opts)]
+      (is (nil? version)))))
+
+;; ## Integration Tests
+
+(deftest ^:integration t-integration-versions-per-repository!
+  (let [results (ancient/versions-per-repository! 'ancient-clj)]
+    (is (contains? (set (keys results)) "clojars"))
+    (is (some #{"0.7.0"} (version-strings results "clojars")))))
+
+(deftest ^:integration t-integration-versions!
+  (let [results (ancient/versions! 'ancient-clj)]
+    (is (not (empty? results)))
+    (is (every? :version results))
+    (is (every? :version-string results))
+    (is (some (comp #{"0.7.0"} :version-string) results))))
+
+(deftest ^:integration t-integration-version-strings!
+  (let [results (ancient/version-strings! 'ancient-clj)]
+    (is (some #{"0.7.0"} results))))
+
+(deftest ^:integration t-integration-latest-version!
+  (let [result (ancient/latest-version! 'ancient-clj)]
+    (is (:version result))
+    (is (:version-string result))))
+
+(deftest ^:integration t-integration-artifact-outdated?
+  (let [result (ancient/artifact-outdated? '[ancient-clj "0.1.0"])]
+    (is (:version result))
+    (is (:version-string result))))
+
+(deftest ^:integration t-integration-artifact-outdated-string?
+  (let [result (ancient/artifact-outdated-string? '[ancient-clj "0.1.0"])]
+    (is (string? result))))

@@ -20,9 +20,10 @@
 
 (defn- create-loaders
   [{:keys [repositories] :as opts} & {:keys [wrap] :or {wrap identity}}]
-  (prn repositories)
   (->> (for [[id spec] (or repositories default-repositories)]
-         [id (wrap (aether/loader [id spec] opts))])
+         [id (wrap (if (fn? spec)
+                     spec
+                     (aether/loader [id spec] opts)))])
        (into {})))
 
 ;; ## Result Handling
