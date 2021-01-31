@@ -26,6 +26,25 @@
                      (aether/loader [id spec] opts)))])
        (into {})))
 
+(defn ^{:added "0.3.12"} maybe-create-loader
+  "Create loader function for the given spec. Will return `nil` for
+   unknown loader types."
+  [spec & [opts]]
+  (if (fn? spec)
+    spec
+    (aether/loader ["aether" spec] opts)))
+
+(defn ^{:added "0.3.12"} maybe-create-loaders
+  "Create loader map for a seq of ID/settings pairs representing
+   different repositories. Will contain `nil` values for unknown
+   loaders.
+
+   `wrap` will be called on each loader function."
+  [m & {:keys [wrap] :or {wrap identity}}]
+  (->> (for [[id v] m]
+         [id (some-> v maybe-create-loader wrap)])
+       (into {})))
+
 ;; ## Result Handling
 
 (defn- versions->maps

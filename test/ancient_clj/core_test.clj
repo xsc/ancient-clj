@@ -22,6 +22,17 @@
 
 ;; ## Tests
 
+(deftest t-maybe-create-loader
+  (is (fn? (ancient/maybe-create-loader {:uri "https://clojars.org/repo"})))
+  (is (fn? (ancient/maybe-create-loader (constantly [])))))
+
+(deftest t-maybe-create-loaders
+  (let [loaders (ancient/maybe-create-loaders repositories)]
+    (is (fn? (get loaders "all")))
+    (is (fn? (get loaders "snapshots")))
+    (is (fn? (get loaders "qualified")))
+    (is (fn? (get loaders "releases")))))
+
 (deftest t-versions-per-repository!
   (testing "sort descending (default)"
     (let [opts {:repositories repositories}
