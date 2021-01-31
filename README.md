@@ -1,7 +1,7 @@
 # ancient-clj
 
-[![Clojars Artifact](https://img.shields.io/clojars/v/ancient-clj.svg)](https://clojars.org/ancient-clj)
 ![CI](https://github.com/xsc/lein-ancient/workflows/CI/badge.svg?branch=master)
+[![Clojars Artifact](https://img.shields.io/clojars/v/ancient-clj.svg)](https://clojars.org/ancient-clj)
 [![codecov](https://codecov.io/gh/xsc/ancient-clj/branch/master/graph/badge.svg?token=GLSK1G95TX)](https://codecov.io/gh/xsc/ancient-clj)
 
 __ancient-clj__ is a library for accessing versioning metadata in Maven repositories.
