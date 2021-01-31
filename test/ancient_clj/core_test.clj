@@ -143,6 +143,24 @@
                     opts)]
       (is (nil? version)))))
 
+(deftest t-exception
+  (testing "return exception"
+    (let [opts {:repositories
+                (merge
+                  {"ex" (constantly (ex-info "FAIL" {}))}
+                  repositories)}
+          versions (ancient/versions-per-repository! 'ancient-clj opts)]
+      (is (not (empty? (get versions "all"))))
+      (is (instance? Exception (get versions "ex")))))
+  (testing "throw exception"
+    (let [opts {:repositories
+                (merge
+                  {"ex" (fn [_ _] (throw (ex-info "FAIL" {})))}
+                  repositories)}
+          versions (ancient/versions-per-repository! 'ancient-clj opts)]
+      (is (not (empty? (get versions "all"))))
+      (is (instance? Exception (get versions "ex"))))))
+
 ;; ## Integration Tests
 
 (deftest ^:integration t-integration-versions-per-repository!
