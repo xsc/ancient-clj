@@ -1,24 +1,23 @@
 (ns ancient-clj.artifact-test
-  (:require [midje.sweet :refer :all]
-            [ancient-clj.artifact :refer [read-artifact]]
-            [version-clj.core :refer [version->seq]]))
+  (:require [ancient-clj.artifact :refer [read-artifact]]
+            [version-clj.core :as v]
+            [clojure.test :refer [deftest are is]]))
 
-(tabular
-  (fact "about artifact representations."
-        (let [m (read-artifact (quote ?artifact))]
-          (:group m)          => (name (quote ?group))
-          (:id m)             => (name (quote ?id))
-          (:form m)           => [(:symbol m) (:version-string m)]
-          (:version-string m) => ?version
-          (:version m) => (version->seq ?version)))
-  ?artifact                      ?group       ?id         ?version
-  [pandect "0.3.0"]              pandect      pandect     "0.3.0"
-  [org.clojure/clojure "1.5.1"]  org.clojure  clojure     "1.5.1"
-  [pandect]                      pandect      pandect     ""
-  [org.clojure/clojure]          org.clojure  clojure     ""
-  pandect                        pandect      pandect     ""
-  org.clojure/clojure            org.clojure  clojure     ""
-  "pandect"                      pandect      pandect     ""
-  "org.clojure/clojure"          org.clojure  clojure     ""
-  :pandect                       pandect      pandect     ""
-  :org.clojure/clojure           org.clojure  clojure     "")
+(deftest t-read-artifact
+  (are [artifact group id version]
+       (let [m (read-artifact artifact)]
+         (is (= (name group) (:group m)))
+         (is (= (name id) (:id m)))
+         (is (= (v/version->seq version) (:version m)))
+         (is (= version (:version-string m)))
+         (is (= (:form m) [(:symbol m) (:version-string m)])))
+       '[pandect "0.3.0"]              'pandect      'pandect     "0.3.0"
+       '[org.clojure/clojure "1.5.1"]  'org.clojure  'clojure     "1.5.1"
+       '[pandect]                      'pandect      'pandect     ""
+       '[org.clojure/clojure]          'org.clojure  'clojure     ""
+       'pandect                        'pandect      'pandect     ""
+       'org.clojure/clojure            'org.clojure  'clojure     ""
+       "pandect"                       'pandect      'pandect     ""
+       "org.clojure/clojure"           'org.clojure  'clojure     ""
+       :pandect                        'pandect      'pandect     ""
+       :org.clojure/clojure            'org.clojure  'clojure     ""))

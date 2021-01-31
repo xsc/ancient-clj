@@ -1,5 +1,9 @@
 # ancient-clj
 
+[![Clojars Artifact](https://img.shields.io/clojars/v/ancient-clj.svg)](https://clojars.org/ancient-clj)
+![CI](https://github.com/xsc/lein-ancient/workflows/CI/badge.svg?branch=master)
+[![codecov](https://codecov.io/gh/xsc/ancient-clj/branch/master/graph/badge.svg?token=GLSK1G95TX)](https://codecov.io/gh/xsc/ancient-clj)
+
 __ancient-clj__ is a library for accessing versioning metadata in Maven repositories.
 It is the base for the Leiningen plugin [lein-ancient](https://github.com/xsc/lein-ancient).
 
@@ -93,9 +97,11 @@ of a more recent version than the input artifact.
 
 ## Supported Repository Types
 
-- HTTP/HTTPS Repositories
-- Local Repositories
-- [Amazon S3 Repositories](https://github.com/technomancy/s3-wagon-private) (private)
+Since version 1.0.0, ancient-clj depends on [pomegranate][] (and thus Aether)
+and can benefit from any wagons that are registered there. Please use
+`cemerick.pomegranate.aether/register-wagon-factory!` to utilise this feature.
+
+[pomegranate]: https://github.com/clj-commons/pomegranate
 
 ## License
 
