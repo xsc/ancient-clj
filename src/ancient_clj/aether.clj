@@ -1,7 +1,14 @@
 (ns ancient-clj.aether
   (:require [cemerick.pomegranate.aether :as aether])
   (:import (org.eclipse.aether.resolution VersionRangeRequest)
-           (org.eclipse.aether.artifact DefaultArtifact)))
+           (org.eclipse.aether.artifact DefaultArtifact)
+           (org.eclipse.aether.artifact DefaultArtifact)
+           (org.eclipse.aether.repository LocalRepository)
+           (org.eclipse.aether
+             DefaultRepositorySystemSession
+             RepositorySystem
+             RepositorySystemSession)
+           (java.io File)))
 
 ;; ## Repository System
 
@@ -18,29 +25,49 @@
 (defhack mirror-selector-fn)
 (defhack mirror-selector)
 
-;; ## Version Range Request
+;; ## Disable Local Repository
+
+(defn- disable-local-repository!
+  "We do not need the local repository since we want to always reach out
+   to the data available in the remote repositories. "
+  [^DefaultRepositorySystemSession session]
+  (doto session
+    (.setUpdatePolicy (:always aether/update-policies))))
+
+;; ## Infrastructure
+
+(defn- as-repository-system
+  ^RepositorySystem
+  []
+  (repository-system))
+
 
 (defn- as-repository-session
-  [system {:keys [repository-session-fn
-                  mirrors
-                  proxy
-                  local-repo
-                  offline?]}]
+  ^RepositorySystemSession
+  [^RepositorySystem system
+   {:keys [repository-session-fn
+           mirrors
+           proxy
+           local-repo
+           offline?]}]
   (let [mirror-selector-fn (memoize (partial mirror-selector-fn mirrors))]
-    ((or repository-session-fn
-         aether/repository-session)
-     {:repository-system system
-      :local-repo        local-repo
-      :offline?          offline?
-      :mirror-selector   (mirror-selector mirror-selector-fn proxy)})))
+    (doto ((or repository-session-fn
+               aether/repository-session)
+           {:repository-system system
+            :local-repo        local-repo
+            :offline?          false
+            :mirror-selector   (mirror-selector mirror-selector-fn proxy)})
+      (disable-local-repository!))))
 
 (defn- as-remote-repositories
-  [session {:keys [repositories proxy]}]
+  [^RepositorySystemSession session {:keys [repositories proxy]}]
   (vec
     (for [repository repositories
           :let [remote-repository (aether/make-repository repository proxy)]]
       (or (.. session (getMirrorSelector) (getMirror remote-repository))
           remote-repository))))
+
+;; ## Version Range Request
 
 (defn- as-range-request
   [remote-repos group id]
@@ -55,7 +82,7 @@
   [[id spec] & [opts]]
   (if repository-system
     (let [opts         (assoc opts :repositories {id spec})
-          system       (repository-system)
+          system       (as-repository-system)
           session      (as-repository-session system opts)
           remote-repos (as-remote-repositories session opts)]
       (fn [group id]

@@ -32,7 +32,8 @@
   [spec & [opts]]
   (if (fn? spec)
     spec
-    (aether/loader ["aether" spec] opts)))
+    (let [id (or (:id spec) (name (gensym "repo")))]
+      (aether/loader [id spec] opts))))
 
 (defn ^{:added "0.3.12"} maybe-create-loaders
   "Create loader map for a seq of ID/settings pairs representing
