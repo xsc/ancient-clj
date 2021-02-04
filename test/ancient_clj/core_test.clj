@@ -1,7 +1,6 @@
 (ns ancient-clj.core-test
   (:require [ancient-clj.test :as test]
             [ancient-clj.core :as ancient]
-            [version-clj.core :as v]
             [clojure.test :refer [deftest is testing]]))
 
 ;; ## Fixtures
@@ -150,7 +149,7 @@
                   {"ex" (constantly (ex-info "FAIL" {}))}
                   repositories)}
           versions (ancient/versions-per-repository! 'ancient-clj opts)]
-      (is (not (empty? (get versions "all"))))
+      (is (seq (get versions "all")))
       (is (instance? Exception (get versions "ex")))))
   (testing "throw exception"
     (let [opts {:repositories
@@ -158,7 +157,7 @@
                   {"ex" (fn [_ _] (throw (ex-info "FAIL" {})))}
                   repositories)}
           versions (ancient/versions-per-repository! 'ancient-clj opts)]
-      (is (not (empty? (get versions "all"))))
+      (is (seq (get versions "all")))
       (is (instance? Exception (get versions "ex"))))))
 
 ;; ## Integration Tests
@@ -170,7 +169,7 @@
 
 (deftest ^:integration t-integration-versions!
   (let [results (ancient/versions! 'ancient-clj)]
-    (is (not (empty? results)))
+    (is (seq results))
     (is (every? :version results))
     (is (every? :version-string results))
     (is (some (comp #{"0.7.0"} :version-string) results))))

@@ -1,0 +1,2 @@
+{:lint-as {ancient-clj.aether/defhack clojure.core/declare
+           potemkin/defprotocol+      clojure.core/defprotocol}}

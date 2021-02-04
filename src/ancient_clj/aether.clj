@@ -3,12 +3,10 @@
   (:import (org.eclipse.aether.resolution VersionRangeRequest)
            (org.eclipse.aether.artifact DefaultArtifact)
            (org.eclipse.aether.artifact DefaultArtifact)
-           (org.eclipse.aether.repository LocalRepository)
            (org.eclipse.aether
              DefaultRepositorySystemSession
              RepositorySystem
-             RepositorySystemSession)
-           (java.io File)))
+             RepositorySystemSession)))
 
 ;; ## Repository System
 
@@ -48,8 +46,7 @@
    {:keys [repository-session-fn
            mirrors
            proxy
-           local-repo
-           offline?]}]
+           local-repo]}]
   (let [mirror-selector-fn (memoize (partial mirror-selector-fn mirrors))]
     (doto ((or repository-session-fn
                aether/repository-session)
@@ -80,7 +77,7 @@
   "Loader depending on `clj-commons/pomegranate`. Takes the same options as
    `cemerick.pomegranate.aether/resolve-artifacts`."
   [[id spec] & [opts]]
-  (if repository-system
+  (when repository-system
     (let [opts         (assoc opts :repositories {id spec})
           system       (as-repository-system)
           session      (as-repository-session system opts)
