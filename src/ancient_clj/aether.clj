@@ -39,22 +39,23 @@
   []
   (repository-system))
 
+(defn- as-mirror-selector
+  [{:keys [mirrors proxy]}]
+  (mirror-selector
+    (memoize
+      (partial mirror-selector-fn mirrors))
+    proxy))
 
 (defn- as-repository-session
   ^RepositorySystemSession
   [^RepositorySystem system
-   {:keys [repository-session-fn
-           mirrors
-           proxy
-           local-repo]}]
-  (let [mirror-selector-fn (memoize (partial mirror-selector-fn mirrors))]
-    (doto ((or repository-session-fn
-               aether/repository-session)
-           {:repository-system system
-            :local-repo        local-repo
-            :offline?          false
-            :mirror-selector   (mirror-selector mirror-selector-fn proxy)})
-      (disable-local-repository!))))
+   {:keys [local-repo] :as opts}]
+  (doto (aether/repository-session
+            {:repository-system system
+             :local-repo        local-repo
+             :offline?          false
+             :mirror-selector   (as-mirror-selector opts)})
+      (disable-local-repository!)))
 
 (defn- as-remote-repositories
   [^RepositorySystemSession session {:keys [repositories proxy]}]

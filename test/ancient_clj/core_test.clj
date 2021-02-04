@@ -189,5 +189,11 @@
     (is (:version-string result))))
 
 (deftest ^:integration t-integration-artifact-outdated-string?
-  (let [result (ancient/artifact-outdated-string? '[ancient-clj "0.1.0"])]
+  (let [result (ancient/artifact-outdated-string? '[pandect "0.1.0"])]
     (is (string? result))))
+
+(deftest ^:integration t-integration-mirrors
+  (let [opts   {:mirrors {#"clojars" {:name "unavailable mirror"
+                                      :url "file://.repo"}}}
+        result (ancient/artifact-outdated-string? '[pandect "0.1.0"] opts)]
+    (is (not result))))
