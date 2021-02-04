@@ -3,12 +3,10 @@
   (:import (org.eclipse.aether.resolution VersionRangeRequest)
            (org.eclipse.aether.artifact DefaultArtifact)
            (org.eclipse.aether.artifact DefaultArtifact)
-           (org.eclipse.aether.repository LocalRepository)
            (org.eclipse.aether
              DefaultRepositorySystemSession
              RepositorySystem
-             RepositorySystemSession)
-           (java.io File)))
+             RepositorySystemSession)))
 
 ;; ## Repository System
 
@@ -41,23 +39,23 @@
   []
   (repository-system))
 
+(defn- as-mirror-selector
+  [{:keys [mirrors proxy]}]
+  (mirror-selector
+    (memoize
+      (partial mirror-selector-fn mirrors))
+    proxy))
 
 (defn- as-repository-session
   ^RepositorySystemSession
   [^RepositorySystem system
-   {:keys [repository-session-fn
-           mirrors
-           proxy
-           local-repo
-           offline?]}]
-  (let [mirror-selector-fn (memoize (partial mirror-selector-fn mirrors))]
-    (doto ((or repository-session-fn
-               aether/repository-session)
-           {:repository-system system
-            :local-repo        local-repo
-            :offline?          false
-            :mirror-selector   (mirror-selector mirror-selector-fn proxy)})
-      (disable-local-repository!))))
+   {:keys [local-repo] :as opts}]
+  (doto (aether/repository-session
+            {:repository-system system
+             :local-repo        local-repo
+             :offline?          false
+             :mirror-selector   (as-mirror-selector opts)})
+      (disable-local-repository!)))
 
 (defn- as-remote-repositories
   [^RepositorySystemSession session {:keys [repositories proxy]}]
@@ -80,7 +78,7 @@
   "Loader depending on `clj-commons/pomegranate`. Takes the same options as
    `cemerick.pomegranate.aether/resolve-artifacts`."
   [[id spec] & [opts]]
-  (if repository-system
+  (when repository-system
     (let [opts         (assoc opts :repositories {id spec})
           system       (as-repository-system)
           session      (as-repository-session system opts)

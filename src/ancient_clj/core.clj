@@ -19,8 +19,8 @@
 ;; ## Loader
 
 (defn- create-loaders
-  [{:keys [repositories] :as opts} & {:keys [wrap] :or {wrap identity}}]
-  (->> (for [[id spec] (or repositories default-repositories)]
+  [repositories & [{:keys [wrap] :or {wrap identity} :as opts}]]
+  (->> (for [[id spec] repositories]
          [id (wrap (if (fn? spec)
                      spec
                      (aether/loader [id spec] opts)))])
@@ -109,18 +109,18 @@
 
    Versions will be given as maps of `:version-string` and `:version` where the latter
    represents a version-clj value."
+  #_{:clj-kondo/ignore [:unused-binding]}
   [artifact & [{:keys [repositories snapshots? qualified? sort]
                 :or {repositories default-repositories
-                     aether?      true
                      snapshots?   true
                      qualified?   true
                      sort         :desc}
                 :as opts}]]
-  (let [loaders (create-loaders opts)
+  (let [loaders (create-loaders repositories opts)
         artifact' (artifact/read-artifact artifact)]
     (->> (for [[id vs] (load-versions! loaders artifact')]
            (if (sequential? vs)
-             (if (seq vs)
+             (when (seq vs)
                (->> (versions->maps vs)
                     (process-versions opts)
                     (vector id)))
@@ -130,19 +130,12 @@
 (defn versions!
   "Return a seq of version maps.
    (For possible options see `ancient-clj.core/versions-per-repository!`.)"
-  [artifact & [{:keys [repositories snapshots? qualified? sort]
-                :or {repositories default-repositories
-                     snapshots?   true
-                     qualified?   true
-                     sort         :desc}
-                :as opts}]]
-  (let [loaders (create-loaders opts)
-        artifact' (artifact/read-artifact artifact)]
-    (->> (for [[id vs] (load-versions! loaders artifact')
-               :when (sequential? vs)]
-           (versions->maps vs))
-         (apply concat)
-         (process-versions opts))))
+  [artifact & [opts]]
+  (->> (assoc opts :sort :none)
+       (versions-per-repository! artifact)
+       (vals)
+       (apply concat)
+       (process-versions opts)))
 
 (defn version-strings!
   "Return a seq of version strings.
@@ -172,8 +165,8 @@
    (For possible options see `ancient-clj.core/versions-per-repository!`.)"
   [artifact & [opts]]
   (let [artifact'(read-artifact artifact)]
-    (if-let [latest (latest-version! artifact' opts)]
-      (if (neg? (v/version-seq-compare
+    (when-let [latest (latest-version! artifact' opts)]
+      (when (neg? (v/version-seq-compare
                   (:version artifact')
                   (:version latest)))
         latest))))

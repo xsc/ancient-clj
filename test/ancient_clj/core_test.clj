@@ -1,7 +1,6 @@
 (ns ancient-clj.core-test
   (:require [ancient-clj.test :as test]
             [ancient-clj.core :as ancient]
-            [version-clj.core :as v]
             [clojure.test :refer [deftest is testing]]))
 
 ;; ## Fixtures
@@ -24,6 +23,7 @@
 
 (deftest t-maybe-create-loader
   (is (fn? (ancient/maybe-create-loader {:uri "https://clojars.org/repo"})))
+  (is (fn? (ancient/maybe-create-loader {:uri "https://clojars.org/repo", :id "clojars"})))
   (is (fn? (ancient/maybe-create-loader (constantly [])))))
 
 (deftest t-maybe-create-loaders
@@ -60,6 +60,17 @@
       (is (= test/snapshot-versions-sorted
              (version-strings versions "snapshots")))
       (is (= test/versions-sorted
+             (version-strings versions "all")))))
+  (testing "sort none"
+    (let [opts {:repositories repositories, :sort :none}
+          versions (ancient/versions-per-repository! 'pandect opts) ]
+      (is (= test/release-versions
+             (version-strings versions "releases")))
+      (is (= test/qualified-versions
+             (version-strings versions "qualified")))
+      (is (= test/snapshot-versions
+             (version-strings versions "snapshots")))
+      (is (= test/versions
              (version-strings versions "all")))))
   (testing "exclude SNAPSHOT versions"
     (let [opts {:repositories repositories, :sort :asc, :snapshots? false}
@@ -150,7 +161,7 @@
                   {"ex" (constantly (ex-info "FAIL" {}))}
                   repositories)}
           versions (ancient/versions-per-repository! 'ancient-clj opts)]
-      (is (not (empty? (get versions "all"))))
+      (is (seq (get versions "all")))
       (is (instance? Exception (get versions "ex")))))
   (testing "throw exception"
     (let [opts {:repositories
@@ -158,7 +169,7 @@
                   {"ex" (fn [_ _] (throw (ex-info "FAIL" {})))}
                   repositories)}
           versions (ancient/versions-per-repository! 'ancient-clj opts)]
-      (is (not (empty? (get versions "all"))))
+      (is (seq (get versions "all")))
       (is (instance? Exception (get versions "ex"))))))
 
 ;; ## Integration Tests
@@ -170,7 +181,7 @@
 
 (deftest ^:integration t-integration-versions!
   (let [results (ancient/versions! 'ancient-clj)]
-    (is (not (empty? results)))
+    (is (seq results))
     (is (every? :version results))
     (is (every? :version-string results))
     (is (some (comp #{"0.7.0"} :version-string) results))))
@@ -190,5 +201,11 @@
     (is (:version-string result))))
 
 (deftest ^:integration t-integration-artifact-outdated-string?
-  (let [result (ancient/artifact-outdated-string? '[ancient-clj "0.1.0"])]
+  (let [result (ancient/artifact-outdated-string? '[pandect "0.1.0"])]
     (is (string? result))))
+
+(deftest ^:integration t-integration-mirrors
+  (let [opts   {:mirrors {#"clojars" {:name "unavailable mirror"
+                                      :url "file://.repo"}}}
+        result (ancient/artifact-outdated-string? '[pandect "0.1.0"] opts)]
+    (is (not result))))
