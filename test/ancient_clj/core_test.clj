@@ -23,6 +23,7 @@
 
 (deftest t-maybe-create-loader
   (is (fn? (ancient/maybe-create-loader {:uri "https://clojars.org/repo"})))
+  (is (fn? (ancient/maybe-create-loader {:uri "https://clojars.org/repo", :id "clojars"})))
   (is (fn? (ancient/maybe-create-loader (constantly [])))))
 
 (deftest t-maybe-create-loaders
@@ -59,6 +60,17 @@
       (is (= test/snapshot-versions-sorted
              (version-strings versions "snapshots")))
       (is (= test/versions-sorted
+             (version-strings versions "all")))))
+  (testing "sort none"
+    (let [opts {:repositories repositories, :sort :none}
+          versions (ancient/versions-per-repository! 'pandect opts) ]
+      (is (= test/release-versions
+             (version-strings versions "releases")))
+      (is (= test/qualified-versions
+             (version-strings versions "qualified")))
+      (is (= test/snapshot-versions
+             (version-strings versions "snapshots")))
+      (is (= test/versions
              (version-strings versions "all")))))
   (testing "exclude SNAPSHOT versions"
     (let [opts {:repositories repositories, :sort :asc, :snapshots? false}
