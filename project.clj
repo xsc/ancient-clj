@@ -7,14 +7,16 @@
             :year 2013
             :key "mit"}
 
-  :dependencies [[org.clojure/clojure "1.10.1" :scope "provided"]
+  :dependencies [[org.clojure/clojure "1.10.3" :scope "provided"]
                  [clj-commons/pomegranate "1.2.0"]
-                 [version-clj "0.1.2"]
-                 [potemkin "0.4.5"]
-                 [riddley "0.2.0"]]
+                 [version-clj "2.0.1"]
+                 [rewrite-clj "1.0.579-alpha"]
+                 [org.clojure/tools.reader "1.3.5"]]
 
   :profiles {:dev
-             {:global-vars {*warn-on-reflection* true}}
+             {:dependencies [[org.clojure/test.check "1.1.0"]
+                             [com.gfredericks/test.chuck "0.2.10"]]
+              :global-vars {*warn-on-reflection* true}}
              :kaocha
              {:dependencies [[lambdaisland/kaocha "1.0.732"
                               :exclusions [org.clojure/spec.alpha]]
