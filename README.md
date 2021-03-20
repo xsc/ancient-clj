@@ -6,9 +6,13 @@
 [![codecov](https://codecov.io/gh/xsc/ancient-clj/branch/master/graph/badge.svg?token=GLSK1G95TX)](https://codecov.io/gh/xsc/ancient-clj)
 
 __ancient-clj__ is a library for accessing versioning metadata in Maven repositories.
-It is the base for the Leiningen plugin [lein-ancient](https://github.com/xsc/lein-ancient).
+It is the base for the Leiningen plugin [lein-ancient][].  Version comparison is
+done using [version-clj][] and Clojure file manipulation relies on
+[rewrite-clj][].
 
-Version comparison is done using [version-clj](https://github.com/xsc/version-clj).
+[lein-ancient]: https://github.com/xsc/lein-ancient
+[version-clj]: https://github.com/xsc/version-clj
+[rewrite-clj]: https://github.com/clj-commons/version-clj
 
 ## Usage
 
@@ -47,8 +51,8 @@ and per-repository results, check out `ancient-clj.repositories/loader`.
 ### Simple API
 
 You can obtain a loader function via `(default-loader)` that will be pointing at
-Clojars and Maven Central. It's used automatically, when e.g. fetching the
-latest version via:
+Clojars and Maven Central. It's used automatically when, for example, fetching
+the latest version via:
 
 ```clojure
 (ancient/latest-version 'ancient-clj)
@@ -67,7 +71,8 @@ Same goes for the sorted list of versions in:
 ```
 
 Both take an additional first parameter if you want to supply a custom (or
-wrapped loader).
+wrapped) loader, e.g. to perform filtering of the returned versions via
+`wrap-ignore`.
 
 ### File Operations
 
