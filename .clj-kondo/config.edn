@@ -1,2 +1,12 @@
-{:lint-as {ancient-clj.aether/defhack clojure.core/declare
-           potemkin/defprotocol+      clojure.core/defprotocol}}
+{:lint-as {ancient-clj.repositories.aether/defhack clojure.core/declare
+           potemkin/defprotocol+                   clojure.core/defprotocol
+           clojure.test.check.properties/for-all   clojure.core/let
+           clojure.test.check.clojure-test/defspec clojure.test/deftest}
+ :linters {:deprecated-var
+           {:exclude
+            {ancient-clj.core/versions!                 {:namespaces ["^ancient-clj.core"]}
+             ancient-clj.core/version-strings!          {:namespaces ["^ancient-clj.core"]}
+             ancient-clj.core/latest-version!           {:namespaces ["^ancient-clj.core"]}
+             ancient-clj.core/latest-version-string!    {:namespaces ["^ancient-clj.core"]}
+             ancient-clj.core/artifact-outdated?        {:namespaces ["^ancient-clj.core"]}
+             ancient-clj.core/artifact-outdated-string? {:namespaces ["^ancient-clj.core"]}}}}}

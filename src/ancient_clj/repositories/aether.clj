@@ -1,4 +1,4 @@
-(ns ancient-clj.aether
+(ns ^:no-doc ancient-clj.repositories.aether
   (:require [cemerick.pomegranate.aether :as aether])
   (:import (org.eclipse.aether.resolution VersionRangeRequest)
            (org.eclipse.aether.artifact DefaultArtifact)
@@ -77,13 +77,13 @@
 (defn loader
   "Loader depending on `clj-commons/pomegranate`. Takes the same options as
    `cemerick.pomegranate.aether/resolve-artifacts`."
-  [[id spec] & [opts]]
+  [id spec & [opts]]
   (when repository-system
     (let [opts         (assoc opts :repositories {id spec})
           system       (as-repository-system)
           session      (as-repository-session system opts)
           remote-repos (as-remote-repositories session opts)]
-      (fn [group id]
+      (fn [{:keys [group id]}]
         (->> (as-range-request remote-repos group id)
              (.resolveVersionRange system session)
              (.getVersions)

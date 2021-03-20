@@ -1,211 +1,210 @@
 (ns ancient-clj.core-test
-  (:require [ancient-clj.test :as test]
-            [ancient-clj.core :as ancient]
-            [clojure.test :refer [deftest is testing]]))
+  (:require [ancient-clj.core :as ancient]
+            [ancient-clj.zip :refer [project-clj]]
+            [rewrite-clj.zip :as z]
+            [version-clj.core :as v]
+            [ancient-clj.test
+             [generators :as test-gen]
+             [zip :refer [form->zloc]]]
+            [clojure.test.check
+             [clojure-test :refer [defspec]]
+             [generators :as gen]
+             [properties :as prop]]
+            [com.gfredericks.test.chuck :as chuck]
+            [clojure.string :as string]
+            [clojure.test :refer [deftest is]])
+  (:import (java.io File)
+           (java.util.concurrent CountDownLatch ExecutionException)))
 
-;; ## Fixtures
+;; ## Helpers
 
-(def repositories
-  {"all"       (constantly test/versions)
-   "releases"  (constantly test/release-versions)
-   "qualified" (constantly test/qualified-versions)
-   "snapshots" (constantly test/snapshot-versions)})
+(def known-versions
+  ["v1.0" "v1.1" "v.1.2"])
 
-(defn version-strings
-  [v k]
-  (map :version-string (get v k)))
+(def gen-known-version
+  (gen/elements known-versions))
 
-(defn no-duplicates?
-  [sq]
-  (= (count (set sq)) (count sq)))
+(defn- versions-replaced?
+  [zloc zloc' target-version]
+  (let [orig (z/root-string zloc)
+        updt (z/root-string zloc')]
+    (if target-version
+      (= updt
+         (reduce
+           (fn [orig version]
+             (if (v/newer? version target-version)
+               orig
+               (string/replace orig version target-version)))
+           orig
+           known-versions))
+      (= updt orig))))
+
+(defn- zloc-identical?
+  [zloc zloc']
+  (let [orig (z/root-string zloc)
+        updt (z/root-string zloc')]
+    (= updt orig)))
+
+(defn- matches?
+  [data repository-ids versions]
+  (= (set (mapcat data repository-ids))
+     (set (map :version-string versions))))
+
+(defn- matches-exactly?
+  [data repository-id versions]
+  (= (get data repository-id)
+     (map :version-string versions)))
+
+(defn- with-temp-file
+  [f]
+  (let [file (File/createTempFile "ancient-clj" ".clj")]
+    (try
+      (f file)
+      (finally
+        (.delete file)))))
 
 ;; ## Tests
 
-(deftest t-maybe-create-loader
-  (is (fn? (ancient/maybe-create-loader {:uri "https://clojars.org/repo"})))
-  (is (fn? (ancient/maybe-create-loader {:uri "https://clojars.org/repo", :id "clojars"})))
-  (is (fn? (ancient/maybe-create-loader (constantly [])))))
+(defspec t-loader (chuck/times 50)
+  (prop/for-all
+    [{:keys [repositories data]} test-gen/gen-repositories]
+    (let [load! (ancient/loader {:repositories repositories})
+          versions (load! 'ancient-clj)]
+      (matches? data ["all"] versions))))
 
-(deftest t-maybe-create-loaders
-  (let [loaders (ancient/maybe-create-loaders repositories)]
-    (is (fn? (get loaders "all")))
-    (is (fn? (get loaders "snapshots")))
-    (is (fn? (get loaders "qualified")))
-    (is (fn? (get loaders "releases")))))
+(defspec t-loader-with-exception (chuck/times 20)
+  (prop/for-all
+    [{:keys [repositories data]} test-gen/gen-repositories]
+    (let [repos (assoc repositories "ex" #(throw (ex-info "FAIL" %)))
+          load! (ancient/loader {:repositories repos})
+          versions (load! 'ancient-clj)]
+      (matches? data ["all"] versions))))
 
-(deftest t-versions-per-repository!
-  (testing "sort descending (default)"
-    (let [opts {:repositories repositories}
-          versions (ancient/versions-per-repository! 'pandect opts)
-          all-results (apply concat (vals versions))]
-      (is (= (set (keys repositories))
-             (set (keys versions))))
-      (is (every? :version all-results))
-      (is (every? :version-string all-results))
-      (is (= (reverse test/release-versions-sorted)
-             (version-strings versions "releases")))
-      (is (= (reverse test/qualified-versions-sorted)
-             (version-strings versions "qualified")))
-      (is (= (reverse test/snapshot-versions-sorted)
-             (version-strings versions "snapshots")))
-      (is (= (reverse test/versions-sorted)
-             (version-strings versions "all")))))
-  (testing "sort ascending"
-    (let [opts {:repositories repositories, :sort :asc}
-          versions (ancient/versions-per-repository! 'pandect opts)]
-      (is (= test/release-versions-sorted
-             (version-strings versions "releases")))
-      (is (= test/qualified-versions-sorted
-             (version-strings versions "qualified")))
-      (is (= test/snapshot-versions-sorted
-             (version-strings versions "snapshots")))
-      (is (= test/versions-sorted
-             (version-strings versions "all")))))
-  (testing "sort none"
-    (let [opts {:repositories repositories, :sort :none}
-          versions (ancient/versions-per-repository! 'pandect opts) ]
-      (is (= test/release-versions
-             (version-strings versions "releases")))
-      (is (= test/qualified-versions
-             (version-strings versions "qualified")))
-      (is (= test/snapshot-versions
-             (version-strings versions "snapshots")))
-      (is (= test/versions
-             (version-strings versions "all")))))
-  (testing "exclude SNAPSHOT versions"
-    (let [opts {:repositories repositories, :sort :asc, :snapshots? false}
-          versions (ancient/versions-per-repository! 'pandect opts)]
-      (is (= test/release-versions-sorted
-             (version-strings versions "releases")))
-      (is (= test/qualified-versions-sorted
-             (version-strings versions "qualified")))
-      (is (empty? (version-strings versions "snapshots")))
-      (is (not= test/versions-sorted
-                (version-strings versions "all")))))
-  (testing "exclude qualified versions"
-    (let [opts {:repositories repositories, :sort :asc, :qualified? false}
-          versions (ancient/versions-per-repository! 'pandect opts)]
-      (is (= test/release-versions-sorted
-             (version-strings versions "releases")))
-      (is (empty? (version-strings versions "qualified")))
-      (is (= test/snapshot-versions-sorted
-             (version-strings versions "snapshots")))
-      (is (not= test/versions-sorted
-                (version-strings versions "all"))))))
+(deftest t-default-loader
+  (is (fn? (ancient/default-loader))))
 
-(deftest t-versions!
-  (testing "sort descending (default)"
-    (let [opts {:repositories repositories}
-          versions (ancient/versions! 'pandect opts)]
-      (is (no-duplicates? versions))
-      (is (every? :version versions))
-      (is (every? :version-string versions))
-      (is (= (reverse test/versions-sorted)
-             (map :version-string versions)))))
-  (testing "sort ascending"
-    (let [opts {:repositories repositories, :sort :asc}
-          versions (ancient/versions! 'pandect opts)]
-      (is (no-duplicates? versions))
-      (is (every? :version versions))
-      (is (every? :version-string versions))
-      (is (= test/versions-sorted
-             (map :version-string versions))))))
+(defspec t-sorted-versions (chuck/times 50)
+  (prop/for-all
+    [{:keys [repositories data]} test-gen/gen-repositories]
+    (let [load! (ancient/loader {:repositories repositories})
+          versions (ancient/sorted-versions load! 'ancient-clj)]
+      (matches-exactly? data "all" versions))))
 
-(deftest t-version-strings!
-  (testing "sort descending (default)"
-    (let [opts {:repositories repositories}
-          versions (ancient/version-strings! 'pandect opts)]
-      (is (no-duplicates? versions))
-      (is (= (reverse test/versions-sorted) versions))))
-  (testing "sort ascending"
-    (let [opts {:repositories repositories, :sort :asc}
-          versions (ancient/version-strings! 'pandect opts)]
-      (is (no-duplicates? versions))
-      (is (= test/versions-sorted versions)))))
+(defspec t-latest-version (chuck/times 50)
+  (prop/for-all
+    [{:keys [repositories latest-version]} test-gen/gen-repositories]
+    (let [load! (ancient/loader {:repositories repositories})
+          version (ancient/latest-version load! 'ancient-clj)]
+      (= latest-version (:version-string version)))))
 
-(deftest t-latest-version!
-  (testing "all versions"
-    (let [opts {:repositories repositories}
-          version (ancient/latest-version! 'pandect opts)]
-      (is (= "0.1.3-SNAPSHOT" (:version-string version)))))
-  (testing "only releases"
-    (let [opts {:repositories repositories,
-                :snapshots? false,
-                :qualified? false}
-          version (ancient/latest-version! 'pandect opts)]
-      (is (= "0.1.2" (:version-string version)))))
-  (testing "including qualified versions"
-    (let [opts {:repositories repositories,
-                :snapshots? false}
-          version (ancient/latest-version! 'pandect opts)]
-      (is (= "0.1.3-alpha" (:version-string version))))))
+(defspec t-updater (chuck/times 50)
+  (prop/for-all
+    [{:keys [repositories latest-version]} test-gen/gen-repositories
+     form   (test-gen/gen-defproject* gen-known-version)]
+    (let [load!   (ancient/loader {:repositories repositories})
+          update! (ancient/updater {:visitor (project-clj), :loader load!})
+          zloc    (form->zloc form)
+          zloc'   (update! zloc)]
+      (versions-replaced? zloc zloc' latest-version))))
 
-(deftest t-artifact-outdated?
-  (testing "newer version available"
-    (let [opts {:repositories repositories}
-          version (ancient/artifact-outdated?
-                    ['pandect (first test/versions-sorted)]
-                    opts)]
-      (is (= "0.1.3-SNAPSHOT" (:version-string version)))))
-  (testing "already latest version"
-    (let [opts {:repositories repositories}
-          version (ancient/artifact-outdated?
-                    ['pandect (last test/versions-sorted)]
-                    opts)]
-      (is (nil? version)))))
+(defspec t-updater-with-check-predicate (chuck/times 20)
+  (prop/for-all
+    [form (test-gen/gen-defproject* gen-known-version)]
+    (let [update! (ancient/updater
+                    {:visitor (project-clj)
+                     :loader #(throw (ex-info "FAIL" %))
+                     :check? (constantly false)})
+          zloc    (form->zloc form)
+          zloc'   (update! zloc)]
+      (zloc-identical? zloc zloc'))))
 
-(deftest t-exception
-  (testing "return exception"
-    (let [opts {:repositories
-                (merge
-                  {"ex" (constantly (ex-info "FAIL" {}))}
-                  repositories)}
-          versions (ancient/versions-per-repository! 'ancient-clj opts)]
-      (is (seq (get versions "all")))
-      (is (instance? Exception (get versions "ex")))))
-  (testing "throw exception"
-    (let [opts {:repositories
-                (merge
-                  {"ex" (fn [_ _] (throw (ex-info "FAIL" {})))}
-                  repositories)}
-          versions (ancient/versions-per-repository! 'ancient-clj opts)]
-      (is (seq (get versions "all")))
-      (is (instance? Exception (get versions "ex"))))))
+(defspec t-updater-with-update-predicate (chuck/times 20)
+  (prop/for-all
+    [{:keys [repositories]} test-gen/gen-repositories
+     form   (test-gen/gen-defproject* gen-known-version)]
+    (let [load!   (ancient/loader {:repositories repositories})
+          update! (ancient/updater
+                    {:visitor (project-clj)
+                     :loader load!
+                     :update? (constantly false)})
+          zloc    (form->zloc form)
+          zloc'   (update! zloc)]
+      (zloc-identical? zloc zloc'))))
 
-;; ## Integration Tests
+(defspec t-file-updater (chuck/times 10)
+  (prop/for-all
+    [{:keys [repositories latest-version]} test-gen/gen-repositories
+     form   (test-gen/gen-defproject* gen-known-version)]
+    (let [load!   (ancient/loader {:repositories repositories})
+          update! (ancient/file-updater
+                    {:visitor (project-clj)
+                     :loader load!})
+          zloc  (form->zloc form)
+          zloc' (with-temp-file
+                   (fn [tmp]
+                     (spit tmp form)
+                     (update! tmp)
+                     (z/of-file tmp)))]
+      (versions-replaced? zloc zloc' latest-version))))
 
-(deftest ^:integration t-integration-versions-per-repository!
-  (let [results (ancient/versions-per-repository! 'ancient-clj)]
-    (is (contains? (set (keys results)) "clojars"))
-    (is (some #{"0.7.0"} (version-strings results "clojars")))))
+(deftest t-file-updater-checksum-verification
+  (let [form       '(defproject prj "1.0.0" :dependencies [[dep "1.0.0"]])
+        wrote-file (CountDownLatch. 1)
+        checking   (CountDownLatch. 1)
+        check?     (fn [_]
+                     (.countDown checking)
+                     (.await wrote-file)
+                     false)
+        update! (ancient/file-updater
+                  {:visitor (project-clj)
+                   :loader  (constantly {})
+                   :check?  check?})]
+    (is (thrown-with-msg?
+          ExecutionException
+          #"File was modified while performing dependency update!"
+          @(with-temp-file
+             (fn [^File tmp]
+               (spit tmp form)
+               (let [fut (future (update! tmp))]
+                 (.await checking)
+                 (.setLastModified tmp 100)
+                 (.countDown wrote-file)
+                 fut)))))))
 
-(deftest ^:integration t-integration-versions!
-  (let [results (ancient/versions! 'ancient-clj)]
-    (is (seq results))
-    (is (every? :version results))
-    (is (every? :version-string results))
-    (is (some (comp #{"0.7.0"} :version-string) results))))
+(defspec t-wrap-ignore (chuck/times 10)
+  (prop/for-all
+    [{:keys [repositories data]} test-gen/gen-repositories
+     [what-to-ignore expected-contents]
+     (gen/elements
+       {[:snapshot]            ["releases" "qualified"]
+        [:qualified]           ["releases" "snapshots"]
+        [:snapshot :qualified] ["releases"]})]
+    (let [load! (-> (ancient/loader {:repositories repositories})
+                    (ancient/wrap-ignore what-to-ignore))
+          versions (load! 'ancient-clj)]
+      (matches? data expected-contents versions))))
 
-(deftest ^:integration t-integration-version-strings!
-  (let [results (ancient/version-strings! 'ancient-clj)]
-    (is (some #{"0.7.0"} results))))
+(defspec t-wrap-sort (chuck/times 10)
+  (prop/for-all
+    [{:keys [repositories data]} test-gen/gen-repositories
+     sort-direction (gen/elements [:asc :desc])]
+    (let [load! (-> (ancient/loader {:repositories repositories})
+                    (ancient/wrap-sort sort-direction))
+          versions (load! 'ancient-clj)]
+      (->> (if (= sort-direction :asc)
+             versions
+             (reverse versions))
+           (matches-exactly? data "all")))))
 
-(deftest ^:integration t-integration-latest-version!
-  (let [result (ancient/latest-version! 'ancient-clj)]
-    (is (:version result))
-    (is (:version-string result))))
+(defspec t-wrap-as-string (chuck/times 10)
+  (prop/for-all
+    [{:keys [repositories]} test-gen/gen-repositories]
+    (let [load! (-> (ancient/loader {:repositories repositories})
+                    (ancient/wrap-as-string))
+          versions (load! 'ancient-clj)]
+      (every? string? versions))))
 
-(deftest ^:integration t-integration-artifact-outdated?
-  (let [result (ancient/artifact-outdated? '[ancient-clj "0.1.0"])]
-    (is (:version result))
-    (is (:version-string result))))
-
-(deftest ^:integration t-integration-artifact-outdated-string?
-  (let [result (ancient/artifact-outdated-string? '[pandect "0.1.0"])]
-    (is (string? result))))
-
-(deftest ^:integration t-integration-mirrors
-  (let [opts   {:mirrors {#"clojars" {:name "unavailable mirror"
-                                      :url "file://.repo"}}}
-        result (ancient/artifact-outdated-string? '[pandect "0.1.0"] opts)]
-    (is (not result))))
+(deftest t-wrap-sort-exception
+  (is (thrown?
+        IllegalArgumentException
+        (ancient/wrap-sort identity :unknown))))
