@@ -188,6 +188,14 @@
              (reverse versions))
            (matches-exactly? data "all")))))
 
+(defspec t-wrap-as-string (chuck/times 10)
+  (prop/for-all
+    [{:keys [repositories]} test-gen/gen-repositories]
+    (let [load! (-> (ancient/loader {:repositories repositories})
+                    (ancient/wrap-as-string))
+          versions (load! 'ancient-clj)]
+      (every? string? versions))))
+
 (deftest t-wrap-sort-exception
   (is (thrown?
         IllegalArgumentException

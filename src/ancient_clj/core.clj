@@ -23,6 +23,7 @@
            (load-fn)
            (:versions)
            (vals)
+           (filter seq?)
            (apply concat)
            (distinct)))))
 
@@ -67,6 +68,13 @@
     (fn [dependency]
       (sort-by :version comparator (loader dependency)))))
 
+(defn wrap-as-string
+  "Wrap a [[loader]] to only return the contained version strings."
+  [loader]
+  (fn [dependency]
+    (->> (loader dependency)
+         (map :version-string))))
+
 ;; ## Collector
 
 (defn- outdated?
@@ -86,6 +94,9 @@
     versions))
 
 (defn collector
+  "Will create a collector function that takes a `rewrite-clj` zipper, collects
+  all dependencies, loads the latest versions and returns each artifact that
+  needs to be updated, incl. a `:latest-version` key."
   [{:keys [visitor
            check?
            loader]
@@ -225,9 +236,7 @@
   [artifact & [opts]]
   (let [artifact' (read-artifact artifact)]
     (when-let [latest (latest-version! artifact' opts)]
-      (when (neg? (v/version-seq-compare
-                    (:version artifact')
-                    (:version latest)))
+      (when (outdated? artifact' latest) 
         latest))))
 
 (defn ^{:deprecated "2.0.0"} artifact-outdated-string?
