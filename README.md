@@ -1,7 +1,8 @@
 # ancient-clj
 
 [![Clojars Artifact](https://img.shields.io/clojars/v/ancient-clj.svg)](https://clojars.org/ancient-clj)
-![CI](https://github.com/xsc/ancient-clj/workflows/CI/badge.svg?branch=master)
+[![Documentation](https://cljdoc.org/badge/ancient-clj/ancient-clj)](https://cljdoc.org/d/ancient-clj/ancient-clj/CURRENT)
+[![CI](https://github.com/xsc/ancient-clj/workflows/CI/badge.svg?branch=master)](https://github.com/xsc/ancient-clj/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/xsc/ancient-clj/branch/master/graph/badge.svg?token=GLSK1G95TX)](https://codecov.io/gh/xsc/ancient-clj)
 
 __ancient-clj__ is a library for accessing versioning metadata in Maven repositories.
@@ -15,85 +16,121 @@ Version comparison is done using [version-clj](https://github.com/xsc/version-cl
 (require '[ancient-clj.core :as ancient])
 ```
 
-### Repositories
+### Maven Repository Access
 
-The base of all ancient-clj operations is a map associating an ID with a repository specification, given
-as one of the following:
-
-- a URI string (`http://...`, `https://...`, `file://...`, `s3p://...`),
-- a map of `:uri` and repository-specific settings (`:username`, `:passphrase`, ...),
-- a two-parameter function returning a seq of version strings based on artifact group and ID.
-
-(`:uri` and `:url`, as well as `:passphrase` and `:password` are interchangeable.)
-
-__Example:__
+You can create a loader function that'll allow you to pass an artifact (e.g. as
+a symbol) and returns a list of versions contained in that repository,
+represented as maps:
 
 ```clojure
-{"central"   "http://repo1.maven.org/maven2"
- "clojars"   "https://clojars.org/repo"
- "http-auth" {:uri "https://my.repo.server/releases"
-              :username "HTTP_BASIC_AUTH_USER"
-              :passphrase "HTTP_BASIC_AUTH_PASSWORD"}
- "s3"        {:uri "s3p://maven/bucket"
-              :username "AWS_ACCESS_KEY"
-              :passphrase "AWS_SECRET_KEY"}}
+(let [load! (ancient/loader
+              {:repositories {"clojars" "https://clojars.org/repo"}})]
+  (load! 'ancient-clj))
+;; => ({:version [(0 1 0) ["snapshot"]],
+;;      :qualifiers #{"snapshot"},
+;;      :snapshot? true,
+;;      :qualified? true,
+;;      :version-string "0.1.0-SNAPSHOT"},
+;;     {:version [(0 1 0)], ...}, ...)
 ```
 
-The default repositories are stored in `ancient-clj.core/default-repositories`.
+This loader will return a raw list of versions, unsorted and unfiltered. You can
+use the following wrappers:
 
-### Artifacts + Options
+- `wrap-ignore`: remove SNAPSHOT/qualified versions as desired,
+- `wrap-sort`: sort the returned list of version maps,
+- `wrap-as-string`: only return the version string, not the whole map.
 
-Artifacts can be given as everything implementing `ancient-clj.artifact/Artifact`:
+If you need a lower-level loader function that allows you to access exceptions
+and per-repository results, check out `ancient-clj.repositories/loader`.
 
-- a vector (`[ancient-clj "0.2.0"]`, `[ancient-clj]`, ...)
-- a symbol/keyword/string (`ancient-clj`, `:ancient-clj/ancient-clj`, `"ancient-clj"`)
-- a map of `:group`, `:id` and `:version-string`.
+### Simple API
 
-All ancient-clj functions take one of those as first parameter, as well as an optional map of
-options as second one:
-
-- `:snapshots?`: whether or not to consider SNAPSHOT versions in the results (default: true),
-- `:qualified?`: whether or not to consider alpha/beta/RC/... versions in the results
-  (default: true),
-- `:sort`: how to sort the results (`:desc` (default), `:asc`, `:none`),
-- `:repositories`: see above (default: Maven Central + Clojars).
-
-To analyze an artifact use `ancient-clj.core/read-artifact`:
+You can obtain a loader function via `(default-loader)` that will be pointing at
+Clojars and Maven Central. It's used automatically, when e.g. fetching the
+latest version via:
 
 ```clojure
-(ancient/read-artifact '[com.taoensso/timbre "3.3.1"])
-;; => {:form [com.taoensso/timbre "3.3.1"],
-;;     :symbol com.taoensso/timbre,
-;;     :version-string "3.3.1",
-;;     :version [(3 3 1)],
-;;     :id "timbre",
-;;     :group "com.taoensso"}
+(ancient/latest-version 'ancient-clj)
+;; => {:version [(1 0 0)],
+;;     :qualifiers #{},
+;;     :snapshot? false,
+;;     :qualified? false,
+;;     :version-string "1.0.0"}
 ```
 
-### Operations
-
-The base of all operations is `versions-per-repository!` which produces a map of either
-a seq of version maps or a Throwable associated with each repository ID:
+Same goes for the sorted list of versions in:
 
 ```clojure
-(ancient/versions-per-repository! 'ancient-clj)
-;; => {"clojars" ({:version [(0 1 10)], :version-string "0.1.10"} ...)
-;;     "central" (...)}
-
-(ancient/versions-per-repository!
-  'ancient-clj
-  {:repositories {"invalid" "http://nosuchpage.maven.org"}})
-;; => {"invalid" #<UnknownHostException java.net.UnknownHostException: ...>}
+(ancient/sorted-versions 'ancient-clj)
+;; => ({:version [(0 1 0) ["snapshot"]], ...}, ...)
 ```
 
-As you can see, versions are given as a map of `:version-string` and `:version` (a version-clj
-version value).
+Both take an additional first parameter if you want to supply a custom (or
+wrapped loader).
 
-Flat seqs of version maps/strings can be obtained using `versions!` and `version-strings!`, the
-latest ones are returned by `latest-version!` and `latest-version-string!`.
+### File Operations
 
-`artifact-outdated?` and `artifact-outdated-string?` only return a version value if it is
-of a more recent version than the input artifact.
+At the core of `lein-ancient` is the ability to collect dependencies from
+files and automatically update them in-place. With version 2.0.0 this has moved
+into `ancient-clj`.
+
+```clojure
+(require '[ancient-clj.zip :refer [project-clj]]
+         '[rewrite-clj.zip :as z])
+```
+
+The operations rely on a `rewrite-clj` zippers that can be created from files,
+strings, forms, etc... Internally, the concept of a _visitor_ is used that will
+call a function for each dependency it encounters.
+
+#### Finding outdated dependencies
+
+```clojure
+(let [collect! (ancient/collector {:visitor (project-clj)})]
+  (collect! (z/of-file "project.clj")))
+;; => ({:id "clojure",
+;;      :group "org.clojure",
+;;      :version [(1 10 3)],
+;;      :version-string "1.10.3",
+;;      :symbol org.clojure/clojure,
+;;      :form [org.clojure/clojure "1.10.3"],
+;;      :value [org.clojure/clojure "1.10.3" :scope "provided"],
+;;      :latest-version {:version [(1 11 0) ("alpha" 1)],
+;;                       :qualifiers #{"alpha"},
+;;                       :snapshot? false,
+;;                       :qualified? true,
+;;                       :version-string "1.11.0-alpha1"}}, ...)
+```
+
+You can supply a custom `:loader`, as well as a `:check?` predicate that allows
+you to be selective about what to check.
+
+#### Updating outdated dependencies
+
+```clojure
+(let [update! (ancient/updater {:visitor (project-clj)})]
+  (-> (z/of-file "project.clj")
+      (update!)
+      (z/root-string)))
+;; => "(defproject ... :dependencies [[org.clojure/clojure \"1.11.0-alpha1\" :scope \"provided\"]\n ...)"
+```
+
+Again, you can supply a custom `:loader`, a `:check?` predicate, as well as an
+`:update?` predicate. The last one can be especially useful, e.g. if you want
+to avoid performing major version updates.
+
+#### Updating files directly
+
+Use `ancient-clj.core/file-updater` to update files in-place. An exception will
+be thrown if the file changed before changes are written back.
+
+## Deprecated API
+
+In version 2.0.0, part of the original API has been removed while most of the
+remaining functions have been marked deprecated. All functionality can be
+replicated with the new facilities, but if you're missing a convencience
+function, please open a PR and we can discuss.
 
 ## Supported Repository Types
 
