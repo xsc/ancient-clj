@@ -72,6 +72,14 @@
           versions (load! 'ancient-clj)]
       (matches? data ["all"] versions))))
 
+(defspec t-loader-with-exception (chuck/times 20)
+  (prop/for-all
+    [{:keys [repositories data]} test-gen/gen-repositories]
+    (let [repos (assoc repositories "ex" #(throw (ex-info "FAIL" %)))
+          load! (ancient/loader {:repositories repos})
+          versions (load! 'ancient-clj)]
+      (matches? data ["all"] versions))))
+
 (deftest t-default-loader
   (is (fn? (ancient/default-loader))))
 

@@ -23,7 +23,7 @@
            (load-fn)
            (:versions)
            (vals)
-           (filter seq?)
+           (filter coll?)
            (apply concat)
            (distinct)))))
 
