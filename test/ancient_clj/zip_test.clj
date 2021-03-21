@@ -45,7 +45,7 @@
     [deps gen-deps-vector]
     (let [zloc  (form->zloc deps)
           found (dependencies opts zloc)]
-      (= deps (map :value found)))))
+      (= deps (map ::artifact/form found)))))
 
 (defspec t-update-dependencies (chuck/times 50)
   (prop/for-all
@@ -64,7 +64,7 @@
      version test/gen-version]
     (let [zloc  (form->zloc deps)
           zloc' (->> (fn [dep]
-                       (when (= (:value dep) (first deps))
+                       (when (= (::artifact/form dep) (first deps))
                          version))
                      (update-dependencies opts zloc))
           deps' (z/sexpr zloc')]

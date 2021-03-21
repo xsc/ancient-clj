@@ -1,5 +1,6 @@
 (ns ^:no-doc ancient-clj.repositories.aether
-  (:require [cemerick.pomegranate.aether :as aether])
+  (:require [ancient-clj.artifact :as artifact]
+            [cemerick.pomegranate.aether :as aether])
   (:import (org.eclipse.aether.resolution VersionRangeRequest)
            (org.eclipse.aether.artifact DefaultArtifact)
            (org.eclipse.aether.artifact DefaultArtifact)
@@ -83,7 +84,7 @@
           system       (as-repository-system)
           session      (as-repository-session system opts)
           remote-repos (as-remote-repositories session opts)]
-      (fn [{:keys [group id]}]
+      (fn [{:keys [::artifact/group ::artifact/id]}]
         (->> (as-range-request remote-repos group id)
              (.resolveVersionRange system session)
              (.getVersions)

@@ -1,5 +1,6 @@
 (ns ancient-clj.repositories-test
   (:require [ancient-clj.repositories :as r]
+            [ancient-clj.artifact :as artifact]
             [ancient-clj.test.generators :as test-gen]
             [clojure.test.check
              [clojure-test :refer [defspec]]
@@ -14,7 +15,8 @@
   (and (= (set (keys versions)) (set (keys data)))
        (every?
          (fn [[repository-id vs]]
-           (= (get data repository-id) (map :version-string vs)))
+           (= (get data repository-id)
+              (map ::artifact/version vs)))
          versions)))
 
 ;; ## Test
@@ -24,15 +26,15 @@
     [{:keys [repositories data]} test-gen/gen-repositories]
     (let [load! (r/loader {:repositories repositories})
           {:keys [artifact versions]} (load! 'ancient-clj)]
-      (and (= "ancient-clj" (:group artifact))
-           (= "ancient-clj" (:id artifact))
+      (and (= "ancient-clj" (::artifact/group artifact))
+           (= "ancient-clj" (::artifact/id artifact))
            (matches? versions data)))))
 
 (defspec t-loader-with-wrap (chuck/times 10)
   (prop/for-all
     [{:keys [repositories data]} test-gen/gen-repositories]
     (let [calls (atom #{})
-          add-call #(swap! calls conj [%1 (:symbol %2)])
+          add-call #(swap! calls conj [%1 (::artifact/symbol %2)])
           opts {:repositories repositories
                 :wrap (fn [repository-id f]
                         (fn [artifact]

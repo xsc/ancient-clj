@@ -30,12 +30,11 @@ represented as maps:
 (let [load! (ancient/loader
               {:repositories {"clojars" "https://clojars.org/repo"}})]
   (load! 'ancient-clj))
-;; => ({:version [(0 1 0) ["snapshot"]],
-;;      :qualifiers #{"snapshot"},
-;;      :snapshot? true,
-;;      :qualified? true,
-;;      :version-string "0.1.0-SNAPSHOT"},
-;;     {:version [(0 1 0)], ...}, ...)
+;; => ({:version-clj.core/version {:version [(0 1 0) ["snapshot"]],
+;;                                 :qualifiers #{"snapshot"},
+;;                                 :snapshot? true,
+;;                                 :qualified? true},
+;;      :ancient-clj.artifact/version "0.1.0-SNAPSHOT"}, ...)
 ```
 
 This loader will return a raw list of versions, unsorted and unfiltered. You can
@@ -56,18 +55,22 @@ the latest version via:
 
 ```clojure
 (ancient/latest-version 'ancient-clj)
-;; => {:version [(1 0 0)],
-;;     :qualifiers #{},
-;;     :snapshot? false,
-;;     :qualified? false,
-;;     :version-string "1.0.0"}
+;; => {:version-clj.core/version {:version [(1 0 0)],
+;;                                :qualifiers #{},
+;;                                :snapshot? false,
+;;                                :qualified? false},
+;;     :ancient-clj.artifact/version "1.0.0"}
 ```
 
 Same goes for the sorted list of versions in:
 
 ```clojure
 (ancient/sorted-versions 'ancient-clj)
-;; => ({:version [(0 1 0) ["snapshot"]], ...}, ...)
+;; => ({:version-clj.core/version {:version [(0 1 0) ["snapshot"]],
+;;                                 :qualifiers #{"snapshot"},
+;;                                 :snapshot? true,
+;;                                 :qualified? true},
+;;      :ancient-clj.artifact/version "0.1.0-SNAPSHOT"}, ...)
 ```
 
 Both take an additional first parameter if you want to supply a custom (or
@@ -94,18 +97,15 @@ call a function for each dependency it encounters.
 ```clojure
 (let [collect! (ancient/collector {:visitor (project-clj)})]
   (collect! (z/of-file "project.clj")))
-;; => ({:id "clojure",
-;;      :group "org.clojure",
-;;      :version [(1 10 3)],
-;;      :version-string "1.10.3",
-;;      :symbol org.clojure/clojure,
-;;      :form [org.clojure/clojure "1.10.3"],
-;;      :value [org.clojure/clojure "1.10.3" :scope "provided"],
-;;      :latest-version {:version [(1 11 0) ("alpha" 1)],
-;;                       :qualifiers #{"alpha"},
-;;                       :snapshot? false,
-;;                       :qualified? true,
-;;                       :version-string "1.11.0-alpha1"}}, ...)
+;; => ({:ancient-clj.artifact/id "clojure",
+;;      :ancient-clj.artifact/group "org.clojure",
+;;      :version-clj.core/version {:version [(1 10 3)], ...},
+;;      :ancient-clj.artifact/version "1.10.3",
+;;      :ancient-clj.artifact/symbol org.clojure/clojure,
+;;      :ancient-clj.artifact/form [org.clojure/clojure "1.10.3" :scope "provided"],
+;;      :ancient-clj.artifact/latest-version
+;;      {:version-clj.core/version {:version [(1 11 0) ("alpha" 1)], ...},
+;;       :ancient-clj.artifact/version "1.11.0-alpha1"}}, ...)
 ```
 
 You can supply a custom `:loader`, as well as a `:check?` predicate that allows
