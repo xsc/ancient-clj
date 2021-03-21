@@ -11,7 +11,7 @@
 
 ;; ## Helpers
 
-(defn- parse-id
+(defn- parse-name
   [s]
   (let [[g a] (if (string? s)
                 (if (.contains ^String s "/")
@@ -21,50 +21,53 @@
                   (if-let [n (namespace s)]
                     [n id]
                     [id id])))]
-    {:id     a
-     :group  g}))
+    {::id    a
+     ::group g}))
 
 (defn- parse-version
   [version]
-  (when (string? version)
-    (let [v (str version)]
-      {:version        (v/version->seq v)
-       :version-string (when (seq version) v)})))
+  (if (and (string? version) (seq version))
+    {::v/version (v/parse version)
+     ::version version}
+    {::v/version nil, ::version nil}))
 
-(defn- ->spec
-  [{:keys [group id] :as id-map}
-   {:keys [version-string] :as v-map}]
-  {:pre [(string? group)
-         (string? id)]}
+(defn- add-artifact-form
+  [{:keys [::id ::group] :as data} form]
   (let [sym (if (= group id)
               (symbol id)
-              (symbol group id))
-        form (if version-string
-               [sym version-string]
-               [sym])]
-    (-> (merge id-map v-map)
-        (assoc :symbol sym
-               :form form
-               :value form))))
+              (symbol group id))]
+    (assoc data
+           ::symbol sym
+           ::form   (or form [sym]))))
+
+(defn- create-artifact-map
+  [artifact-name artifact-version & [form]]
+  (add-artifact-form
+    (merge
+      (parse-name artifact-name)
+      (parse-version artifact-version))
+    form))
 
 ;; ## Implementations
 
 (extend-protocol Artifact
   clojure.lang.IPersistentVector
-  (read-artifact [v]
-    {:pre [(seq v)]}
-    (let [[id version] v]
-      (-> (->spec (parse-id id) (parse-version version))
-          (assoc :value v))))
-
-  clojure.lang.IPersistentMap
-  (read-artifact [{:keys [version] :as v}]
-    (->spec v (parse-version version)))
+  (read-artifact [[artifact-name artifact-version :as form]]
+    {:pre [(seq form)]}
+    (create-artifact-map artifact-name artifact-version form))
 
   clojure.lang.Named
   (read-artifact [n]
-    (->spec (parse-id n) nil))
+    (create-artifact-map n ""))
+
+  clojure.lang.IPersistentMap
+  (read-artifact [{:keys [::group
+                          ::id
+                          ::symbol
+                          ::form] :as data}]
+    (assert (and group id symbol form))
+    data)
 
   String
   (read-artifact [n]
-    (->spec (parse-id n) nil)))
+    (create-artifact-map n "")))

@@ -16,7 +16,8 @@
   (if (sequential? versions)
     (mapv
       (fn [version]
-        (assoc (version/parse version) :version-string version))
+        {::version/version  (version/parse version)
+         ::artifact/version version})
       versions)
     versions))
 

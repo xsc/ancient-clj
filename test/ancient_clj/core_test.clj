@@ -1,6 +1,7 @@
 (ns ancient-clj.core-test
   (:require [ancient-clj.core :as ancient]
             [ancient-clj.zip :refer [project-clj]]
+            [ancient-clj.artifact :as artifact]
             [rewrite-clj.zip :as z]
             [version-clj.core :as v]
             [ancient-clj.test
@@ -48,12 +49,12 @@
 (defn- matches?
   [data repository-ids versions]
   (= (set (mapcat data repository-ids))
-     (set (map :version-string versions))))
+     (set (map ::artifact/version versions))))
 
 (defn- matches-exactly?
   [data repository-id versions]
   (= (get data repository-id)
-     (map :version-string versions)))
+     (map ::artifact/version versions)))
 
 (defn- with-temp-file
   [f]
@@ -95,7 +96,7 @@
     [{:keys [repositories latest-version]} test-gen/gen-repositories]
     (let [load! (ancient/loader {:repositories repositories})
           version (ancient/latest-version load! 'ancient-clj)]
-      (= latest-version (:version-string version)))))
+      (= latest-version (::artifact/version version)))))
 
 (defspec t-updater (chuck/times 50)
   (prop/for-all

@@ -3,7 +3,7 @@
              [artifact :as artifact]
              [repositories :as r]
              [zip :as z]]
-            [version-clj.core :as v]
+            [version-clj.core :as version]
             [rewrite-clj.zip :as rewrite]
             [clojure.java.io :as io])
   (:import (java.io File)))
@@ -37,12 +37,12 @@
 
 (defn- remove-snapshots
   [versions]
-  (remove :snapshot? versions))
+  (remove (comp :snapshot? ::version/version) versions))
 
 (defn- remove-qualified-except-snapshots
   [versions]
   (remove
-    (fn [{:keys [snapshot? qualified?]}]
+    (fn [{{:keys [snapshot? qualified?]} ::version/version}]
       (and qualified? (not snapshot?)))
     versions))
 
@@ -63,23 +63,28 @@
 (defn wrap-sort
   [loader asc-or-desc]
   (let [comparator (case asc-or-desc
-                     :asc  v/version-seq-compare
-                     :desc (comp - v/version-seq-compare))]
+                     :asc  version/version-seq-compare
+                     :desc (comp - version/version-seq-compare))]
     (fn [dependency]
-      (sort-by :version comparator (loader dependency)))))
+      (sort-by
+        #(get-in % [::version/version :version])
+        comparator
+        (loader dependency)))))
 
 (defn wrap-as-string
   "Wrap a [[loader]] to only return the contained version strings."
   [loader]
   (fn [dependency]
     (->> (loader dependency)
-         (map :version-string))))
+         (map ::artifact/version))))
 
 ;; ## Collector
 
 (defn- outdated?
-  [{version-a :version} {version-b :version}]
-  (neg? (v/version-seq-compare version-a version-b)))
+  [{version-a ::version/version} {version-b ::version/version}]
+  (neg? (version/version-seq-compare
+          (:version version-a)
+          (:version version-b))))
 
 (defn- select-latest-version
   [versions]
@@ -109,7 +114,7 @@
                                    (select-latest-version))]
                :when version
                :when (outdated? dependency version)]
-           (assoc dependency :latest-version version))
+           (assoc dependency ::artifact/latest-version version))
          (into []))))
 
 ;; ## Updater
@@ -129,13 +134,16 @@
          update? (constantly true)
          loader  (default-loader)}
     :as opts}]
-  (let [collect-zloc (collector opts)]
+  (let [collect-zloc (collector opts)
+        select (fn [latest-versions artifact]
+                 (get latest-versions (::artifact/symbol artifact)))]
     (fn [zloc]
       (->> (for [dependency (collect-zloc zloc)
-                 :when (update? dependency)]
-             [(dissoc dependency :latest-version)
-              (get-in dependency [:latest-version :version-string])])
+                 :when (update? dependency)
+                 :let [latest (get dependency ::artifact/latest-version)]]
+             [(::artifact/symbol dependency) (::artifact/version latest)])
            (into {})
+           (partial select)
            (z/update-dependencies visitor zloc)))))
 
 ;; ### File Updater
@@ -188,7 +196,8 @@
    (sorted-versions (default-loader) artifact))
   ([loader artifact]
    (->> (loader artifact)
-        (sort-by :version v/version-seq-compare))))
+        (sort-by #(get-in % [::version/version :version])
+                 version/version-seq-compare))))
 
 (defn latest-version
   "Return the latest version from the given loader, represented as a version
@@ -214,10 +223,16 @@
         (not snapshots?)     (wrap-ignore [:snapshot])
         (not qualified?)     (wrap-ignore [:qualified])))))
 
+(defn- unpack-version
+  [version]
+  (assoc (::version/version version)
+         :version-string (::artifact/version version)))
+
 (defn ^{:deprecated "2.0.0"} versions!
   [artifact & [opts]]
   (let [load! (as-loader opts)]
-    (load! artifact)))
+    (->> (load! artifact)
+         (map unpack-version))))
 
 (defn ^{:deprecated "2.0.0"} version-strings!
   [artifact & [opts]]
@@ -226,7 +241,9 @@
 
 (defn ^{:deprecated "2.0.0"} latest-version!
   [artifact & [opts]]
-  (latest-version (as-loader opts) artifact))
+  (-> (as-loader opts)
+      (latest-version artifact)
+      (unpack-version)))
 
 (defn ^{:deprecated "2.0.0"} latest-version-string!
   [artifact & [opts]]
@@ -235,9 +252,9 @@
 (defn ^{:deprecated "2.0.0"} artifact-outdated?
   [artifact & [opts]]
   (let [artifact' (read-artifact artifact)]
-    (when-let [latest (latest-version! artifact' opts)]
-      (when (outdated? artifact' latest) 
-        latest))))
+    (when-let [latest (latest-version (as-loader opts) artifact')]
+      (when (outdated? artifact' latest)
+        (unpack-version latest)))))
 
 (defn ^{:deprecated "2.0.0"} artifact-outdated-string?
   [artifact & [opts]]
