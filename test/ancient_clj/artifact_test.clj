@@ -1,7 +1,7 @@
 (ns ancient-clj.artifact-test
   (:require [ancient-clj.artifact :as artifact]
             [version-clj.core :as v]
-            [clojure.test :refer [deftest are testing]]))
+            [clojure.test :refer [deftest are is testing]]))
 
 (deftest t-read-artifact
   (testing "parsing group/id/version"
@@ -38,11 +38,16 @@
          '[ancient-clj]
          'ancient-clj
          :ancient-clj
-         "ancient-clj")
+         "ancient-clj"
+         "ancient-clj/ancient-clj")
     (are [value]
          (= value (::artifact/form (artifact/read-artifact value)))
          ;; cases
          '[ancient-clj "1.0.0"]
          '[ancient-clj/ancient-clj "1.0.0"]
          '[xsc/ancient-clj "1.0.0"]
-         '[ancient-clj "1.0.0" :scope "test"])))
+         '[ancient-clj "1.0.0" :scope "test"]))
+  (testing "parsing map"
+    (is (thrown? AssertionError (artifact/read-artifact {})))
+    (let [result (artifact/read-artifact '[ancient-clj "1.0.0"])]
+      (is (= result (artifact/read-artifact result))))))

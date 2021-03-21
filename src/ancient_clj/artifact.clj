@@ -32,13 +32,13 @@
     {::v/version nil, ::version nil}))
 
 (defn- add-artifact-form
-  [{:keys [::id ::group ::version] :as data} form]
+  [{:keys [::id ::group] :as data} form]
   (let [sym (if (= group id)
               (symbol id)
               (symbol group id))]
     (assoc data
            ::symbol sym
-           ::form   (or form (if version [sym version] [sym])))))
+           ::form   (or form [sym]))))
 
 (defn- create-artifact-map
   [artifact-name artifact-version & [form]]
